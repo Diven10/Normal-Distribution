@@ -6,35 +6,33 @@ import Graph from "./pages/Graph";
 function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-slate-900 text-white font-sans">
+      <div className="min-h-screen bg-[#FDFCF8] text-stone-900 font-sans selection:bg-[#405232] selection:text-white">
         {/* Navigation Bar */}
-        <nav className="bg-slate-950 border-b border-slate-800 p-4 sticky top-0 z-50">
-          <div className="max-w-5xl mx-auto flex justify-between items-center">
-            <Link
-              to="/"
-              className="text-xl font-bold text-cyan-400 tracking-wider"
-            >
-              Math<span className="text-blue-500">Viz</span>
+        <nav className="px-8 py-6 flex justify-between items-center max-w-7xl mx-auto">
+          <Link to="/" className="text-2xl font-serif font-bold tracking-tight">
+            Area.
+          </Link>
+          <div className="space-x-8 text-sm font-medium hidden md:block">
+            <Link to="/" className="hover:text-[#405232] transition-colors">
+              Learn
             </Link>
-            <div className="space-x-6">
-              <Link
-                to="/"
-                className="text-slate-300 hover:text-cyan-400 transition-colors"
-              >
-                Learn
-              </Link>
-              <Link
-                to="/calculator"
-                className="text-slate-300 hover:text-cyan-400 transition-colors"
-              >
-                Calculator
-              </Link>
-            </div>
+            <Link
+              to="/calculator"
+              className="hover:text-[#405232] transition-colors"
+            >
+              Calculator
+            </Link>
           </div>
+          <Link
+            to="/calculator"
+            className="bg-[#405232] hover:bg-[#2d3a23] text-white text-sm font-medium py-3 px-6 rounded-full transition-all"
+          >
+            Start Solving →
+          </Link>
         </nav>
 
         {/* Page Content */}
-        <main className="p-8">
+        <main className="p-4 md:p-8">
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/calculator" element={<Calculator />} />
