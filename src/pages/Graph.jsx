@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   AreaChart,
@@ -15,14 +15,12 @@ import {
 const Graph = () => {
   const [searchParams] = useSearchParams();
 
-  // Initialize with URL parameters if they exist, otherwise default to 50 and 10
   const initialMean = parseFloat(searchParams.get("mean")) || 50;
   const initialStdDev = parseFloat(searchParams.get("stddev")) || 10;
 
   const [mean, setMean] = useState(initialMean);
   const [stdDev, setStdDev] = useState(initialStdDev);
 
-  // Math logic to generate the bell curve points
   const generateData = (mu, sigma) => {
     const data = [];
     const minX = mu - 4 * sigma;
@@ -42,6 +40,43 @@ const Graph = () => {
 
   const chartData = useMemo(() => generateData(mean, stdDev), [mean, stdDev]);
 
+  // Dynamic Conclusion Logic
+  const getConclusion = () => {
+    let spreadDescription = "";
+    if (stdDev <= 10) {
+      spreadDescription =
+        "highly clustered and predictable. This represents a system with very strict quality control or natural consistency.";
+    } else if (stdDev <= 25) {
+      spreadDescription =
+        "moderately spread out. This represents a normal, expected amount of variance in most real-world datasets.";
+    } else {
+      spreadDescription =
+        "widely dispersed and highly variable. This represents a system with significant fluctuations and low predictability.";
+    }
+
+    return (
+      <>
+        Based on a mean of{" "}
+        <strong className="text-stone-900 font-serif">{mean}</strong> and a
+        standard deviation of{" "}
+        <strong className="text-stone-900 font-serif">{stdDev}</strong>, the
+        data in this distribution is {spreadDescription}
+        <br />
+        <br />
+        Statistically, you can be <strong>95% confident</strong> that any
+        randomly selected data point from this population will fall between{" "}
+        <strong className="text-[#405232] font-serif">
+          {(mean - 2 * stdDev).toFixed(1)}
+        </strong>{" "}
+        and{" "}
+        <strong className="text-[#405232] font-serif">
+          {(mean + 2 * stdDev).toFixed(1)}
+        </strong>
+        .
+      </>
+    );
+  };
+
   return (
     <div className="max-w-7xl mx-auto mt-12 mb-20 animate-fade-in">
       {/* Header */}
@@ -56,14 +91,13 @@ const Graph = () => {
       </div>
 
       {/* Main Grid Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
         {/* LEFT COLUMN: Controls & Rules */}
         <div className="lg:col-span-1 bg-white p-8 rounded-[2rem] border border-stone-200 shadow-sm flex flex-col h-full">
           <h3 className="text-2xl font-serif text-stone-900 mb-8 pb-4 border-b border-stone-100">
             Distribution Controls
           </h3>
 
-          {/* Sliders */}
           <div className="space-y-8 mb-10">
             <div>
               <div className="flex justify-between items-center mb-3">
@@ -106,7 +140,6 @@ const Graph = () => {
             </div>
           </div>
 
-          {/* Empirical Rule Cards */}
           <div className="space-y-4 mt-auto pt-6 border-t border-stone-100">
             <div className="bg-[#f7f8f5] border border-[#a3ad88]/40 p-5 rounded-2xl shadow-sm">
               <h4 className="font-serif font-bold text-[#405232] text-lg mb-1">
@@ -187,30 +220,24 @@ const Graph = () => {
                 formatter={(value) => [value, "Probability Density"]}
               />
 
-              {/* Shaded Standard Deviation Zones */}
-              {/* 3 Std Dev Zone (99.7%) */}
               <ReferenceArea
                 x1={mean - 3 * stdDev}
                 x2={mean + 3 * stdDev}
                 fill="#e5e7eb"
                 fillOpacity={0.4}
               />
-              {/* 2 Std Dev Zone (95%) */}
               <ReferenceArea
                 x1={mean - 2 * stdDev}
                 x2={mean + 2 * stdDev}
                 fill="#d6d3d1"
                 fillOpacity={0.4}
               />
-              {/* 1 Std Dev Zone (68%) */}
               <ReferenceArea
                 x1={mean - stdDev}
                 x2={mean + stdDev}
                 fill="#a3ad88"
                 fillOpacity={0.3}
               />
-
-              {/* Center Mean Line */}
               <ReferenceLine
                 x={mean}
                 stroke="#405232"
@@ -218,7 +245,6 @@ const Graph = () => {
                 strokeDasharray="4 4"
               />
 
-              {/* The Bell Curve Line */}
               <Area
                 type="monotone"
                 dataKey="Probability"
@@ -227,11 +253,21 @@ const Graph = () => {
                 fillOpacity={1}
                 fill="url(#colorOlive)"
                 animationDuration={300}
-                isAnimationActive={false} // Disabled animation so sliders feel instantly responsive
+                isAnimationActive={false}
               />
             </AreaChart>
           </ResponsiveContainer>
         </div>
+      </div>
+
+      {/* NEW SECTION: Dynamic Graph Analysis Conclusion */}
+      <div className="bg-white border-l-4 border-[#405232] p-8 rounded-r-[2rem] rounded-l-lg shadow-sm">
+        <h3 className="text-sm font-bold text-[#405232] uppercase tracking-wider mb-3">
+          Graph Analysis
+        </h3>
+        <p className="text-stone-600 leading-relaxed text-lg">
+          {getConclusion()}
+        </p>
       </div>
     </div>
   );
