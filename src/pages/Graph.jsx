@@ -21,11 +21,24 @@ const Graph = () => {
   const [mean, setMean] = useState(initialMean);
   const [stdDev, setStdDev] = useState(initialStdDev);
 
+  // Generates the (x, y) data points that trace the bell curve.
+  // Recharts doesn't know about math — it just connects dots.
+  // So we pre-compute 100 evenly-spaced points along the PDF formula
+  // and hand them to <AreaChart> as a plain array of { x, Probability } objects.
+  //
+  // The PDF (Probability Density Function) formula used here:
+  //   y = (1 / (σ√2π)) · e^(−½ · ((x−μ)/σ)²)
+  //
+  //   μ (mu)    = mean    → controls the center / horizontal position of the peak
+  //   σ (sigma) = stdDev  → controls the width; larger σ = flatter, wider curve
+  //
+  // We sample from μ − 4σ to μ + 4σ because beyond 4 standard deviations,
+  // the PDF value is so close to zero it's visually indistinguishable from the axis.
   const generateData = (mu, sigma) => {
     const data = [];
     const minX = mu - 4 * sigma;
     const maxX = mu + 4 * sigma;
-    const step = (maxX - minX) / 100;
+    const step = (maxX - minX) / 100; // 100 evenly spaced samples
 
     for (let x = minX; x <= maxX; x += step) {
       const exponent = Math.exp(-0.5 * Math.pow((x - mu) / sigma, 2));
@@ -40,7 +53,6 @@ const Graph = () => {
 
   const chartData = useMemo(() => generateData(mean, stdDev), [mean, stdDev]);
 
-  // Dynamic Conclusion Logic
   const getConclusion = () => {
     let spreadDescription = "";
     if (stdDev <= 10) {
@@ -79,7 +91,6 @@ const Graph = () => {
 
   return (
     <div className="max-w-7xl mx-auto mt-12 mb-20 animate-fade-in">
-      {/* Header */}
       <div className="text-center mb-12">
         <h2 className="text-4xl md:text-5xl font-serif text-stone-900 tracking-tight mb-4 leading-normal py-2">
           Bell Curve Visualizer
@@ -90,9 +101,7 @@ const Graph = () => {
         </p>
       </div>
 
-      {/* Main Grid Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-        {/* LEFT COLUMN: Controls & Rules */}
         <div className="lg:col-span-1 bg-white p-8 rounded-[2rem] border border-stone-200 shadow-sm flex flex-col h-full">
           <h3 className="text-2xl font-serif text-stone-900 mb-8 pb-4 border-b border-stone-100">
             Distribution Controls
@@ -178,12 +187,40 @@ const Graph = () => {
 
         {/* RIGHT COLUMN: The Graph */}
         <div className="lg:col-span-2 bg-white p-6 md:p-10 rounded-[2rem] border border-stone-200 shadow-sm h-[600px] flex flex-col">
+          {/*
+            ResponsiveContainer measures its parent div and passes the
+            exact pixel width/height down to <AreaChart>. This is what
+            makes the chart fluid — AreaChart itself only works with
+            fixed pixel dimensions.
+          */}
           <ResponsiveContainer width="100%" height="100%">
+            {/*
+              <AreaChart> is the coordinate system. It:
+                1. Receives the `data` array (our 100 bell curve points).
+                2. Establishes the SVG canvas and the x/y scale.
+                3. Acts as a context provider — every child component
+                   (<Area>, <ReferenceArea>, <ReferenceLine>, etc.) reads
+                   the scale from this context to know where to draw themselves.
+
+              The `margin` prop adds breathing room between the plotted area
+              and the outer SVG edges so axis labels and the curve don't clip.
+            */}
             <AreaChart
               data={chartData}
               margin={{ top: 20, right: 20, left: 0, bottom: 20 }}
             >
               <defs>
+                {/*
+                  SVG gradient definition for the area fill under the curve.
+                  x1/y1/x2/y2 define the gradient direction:
+                    (0,0) → (0,1) means top-to-bottom (vertical gradient).
+                  
+                  stopOpacity fades from 0.6 at the curve edge to 0.1 at
+                  the x-axis, giving the shaded area a natural "dissolve"
+                  effect rather than a hard-edged filled region.
+                  
+                  This gradient is referenced by id="colorOlive" in <Area> below.
+                */}
                 <linearGradient id="colorOlive" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#405232" stopOpacity={0.6} />
                   <stop offset="95%" stopColor="#405232" stopOpacity={0.1} />
@@ -193,8 +230,26 @@ const Graph = () => {
               <CartesianGrid
                 strokeDasharray="3 3"
                 stroke="#f5f5f4"
-                vertical={false}
+                vertical={false} // Horizontal lines only — vertical lines would clutter a continuous curve
               />
+
+              {/*
+                XAxis reads the `x` key from each data point object.
+                
+                type="number" is critical: it tells Recharts to treat x as a
+                continuous numeric scale rather than discrete categories.
+                Without this, Recharts would space all 100 points evenly
+                regardless of their actual x values — the curve would look
+                correct but the σ zone boundaries (ReferenceArea x1/x2) would
+                land in the wrong positions on screen.
+                
+                domain={["dataMin", "dataMax"]} locks the axis to exactly the
+                range of our generated data (μ ± 4σ), so the curve always
+                fills the full chart width regardless of slider values.
+                
+                tickCount={15} is a hint to Recharts for how many tick labels
+                to render. Recharts may render fewer to avoid overlap.
+              */}
               <XAxis
                 dataKey="x"
                 stroke="#a8a29e"
@@ -206,6 +261,10 @@ const Graph = () => {
                 tickLine={false}
                 dy={10}
               />
+
+              {/* YAxis is hidden because the raw PDF density values (e.g. 0.0399)
+                  are not intuitive to users. The shape and relative height of
+                  the curve is what matters visually, not the absolute y values. */}
               <YAxis hide={true} />
 
               <Tooltip
@@ -220,24 +279,69 @@ const Graph = () => {
                 formatter={(value) => [value, "Probability Density"]}
               />
 
+              {/*
+                ─── STANDARD DEVIATION ZONES (ReferenceArea) ────────────────────
+                
+                <ReferenceArea> draws a filled rectangle that spans from x1 to x2
+                on the x-axis and from the bottom to the top of the chart area.
+                It does NOT follow the curve — it's a flat vertical band layered
+                behind the <Area> fill.
+                
+                The visual "σ zone" effect comes from painter's algorithm layering:
+                the three ReferenceAreas are drawn first (back to front), then
+                the <Area> curve is drawn on top of all of them. The result looks
+                like nested colored regions under the curve, but it's actually
+                three overlapping rectangles with the curve drawn over them.
+                
+                Stacking order (back to front):
+                  ┌─────────────────────────────────────────────────────┐
+                  │  3σ zone (lightest, widest)     — rendered first    │
+                  │    2σ zone (medium)              — rendered second   │
+                  │      1σ zone (darkest, narrowest)— rendered third   │
+                  │        <Area> curve fill         — rendered on top  │
+                  └─────────────────────────────────────────────────────┘
+                
+                Because each inner zone is a different color and fully covers
+                the outer zone in its range, the final appearance is:
+                  - Dark green band  from μ−1σ to μ+1σ  (68% zone)
+                  - Medium gray band from μ−2σ to μ+2σ  (95% zone, visible only outside 1σ)
+                  - Light gray band  from μ−3σ to μ+3σ  (99.7% zone, visible only outside 2σ)
+                
+                The x1/x2 values are re-computed live from `mean` and `stdDev`
+                state, so all three bands reposition instantly as the sliders move.
+              */}
+
+              {/* 99.7% zone: μ ± 3σ — lightest fill, widest band */}
               <ReferenceArea
                 x1={mean - 3 * stdDev}
                 x2={mean + 3 * stdDev}
                 fill="#e5e7eb"
                 fillOpacity={0.4}
               />
+
+              {/* 95% zone: μ ± 2σ — medium fill, drawn on top of 3σ zone */}
               <ReferenceArea
                 x1={mean - 2 * stdDev}
                 x2={mean + 2 * stdDev}
                 fill="#d6d3d1"
                 fillOpacity={0.4}
               />
+
+              {/* 68% zone: μ ± 1σ — darkest/most saturated fill, drawn on top of both */}
               <ReferenceArea
                 x1={mean - stdDev}
                 x2={mean + stdDev}
                 fill="#a3ad88"
                 fillOpacity={0.3}
               />
+
+              {/*
+                Vertical dashed line at the mean.
+                x={mean} maps directly to the x-axis scale — this line will
+                always sit exactly at the peak of the bell curve because the
+                mean is both the center of symmetry and the x-coordinate of
+                the PDF's maximum value.
+              */}
               <ReferenceLine
                 x={mean}
                 stroke="#405232"
@@ -245,6 +349,33 @@ const Graph = () => {
                 strokeDasharray="4 4"
               />
 
+              {/*
+                ─── THE BELL CURVE (Area) ────────────────────────────────────────
+
+                <Area> is what actually draws the bell curve shape. It works in
+                two parts rendered as SVG:
+                
+                  1. A <path> stroke along the top — the visible curve outline.
+                     `stroke="#405232"` and `strokeWidth={4}` style this line.
+                
+                  2. A filled <path> from the curve down to the x-axis baseline.
+                     `fill="url(#colorOlive)"` applies the gradient defined in <defs>.
+                
+                type="monotone" controls how points are interpolected between our
+                100 sampled data points. "monotone" uses a cubic spline that
+                guarantees no overshoot between points — crucial for a smooth
+                bell curve. Other options like "linear" would produce a jagged,
+                polygonal shape instead of a smooth curve.
+                
+                dataKey="Probability" tells Recharts which key in each data object
+                to use as the y-value. Our data objects are { x, Probability },
+                so this maps to the PDF y-value at each point.
+                
+                isAnimationActive={false} disables Recharts' built-in draw-on
+                animation. Since sliders fire onChange continuously, animation
+                would cause the curve to stutter and lag. Disabling it makes
+                the curve re-render instantly on every slider tick.
+              */}
               <Area
                 type="monotone"
                 dataKey="Probability"
@@ -260,7 +391,6 @@ const Graph = () => {
         </div>
       </div>
 
-      {/* NEW SECTION: Dynamic Graph Analysis Conclusion */}
       <div className="bg-white border-l-4 border-[#405232] p-8 rounded-r-[2rem] rounded-l-lg shadow-sm">
         <h3 className="text-sm font-bold text-[#405232] uppercase tracking-wider mb-3">
           Graph Analysis
