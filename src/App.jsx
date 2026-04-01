@@ -9,6 +9,7 @@ import {
 import Home from "./pages/Home";
 import Calculator from "./pages/Calculator";
 import Graph from "./pages/Graph";
+import NotFound from "./pages/NotFound";
 import Footer from "./components/Footer";
 
 // 1. We created a separate Navigation component so it can read the current URL path
@@ -106,6 +107,7 @@ function App() {
               }
             />
             <Route path="/graph" element={<Graph />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </main>
         <Footer />
